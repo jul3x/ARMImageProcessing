@@ -3,10 +3,13 @@
 #include <stdlib.h>
 #include "libpnmio/src/pnmio.h"
 
-int width=0, height=0;
-int img_colors = 3, img_type;
-FILE *imgin_file, *imgout_file;
-int *img_data = NULL;
+int width = 0, height = 0;
+int img_colors = 3;
+FILE* imgin_file;
+FILE* imgout_file;
+int* img_data = NULL;
+char* img_data_byte = NULL;
+
 int enable_ascii = 0;
 
 void load_img(const char* filename)
@@ -21,6 +24,12 @@ void load_img(const char* filename)
     img_data = malloc((3 * width * height) * sizeof(int));
 
     read_ppm_data(imgin_file, img_data, enable_ascii);
+
+    img_data_byte = malloc(width * height * 3);
+    for (int i = 0; i < width * height * 3; ++i)
+    {
+        img_data_byte[i] = (char)img_data[i];
+    }
 }
 
 void save_output_file(const char* filename)
@@ -29,23 +38,18 @@ void save_output_file(const char* filename)
     {
         fprintf(stderr, "Error: Can't create the specified output file.\n");
         exit(1);
-    } 
+    }
+
+    for (int i = 0; i < width * height * 3; ++i)
+    {
+        img_data[i] = (int)img_data_byte[i];
+    }
 
     write_ppm_file(imgout_file, img_data, width, height, 1, 1, img_colors, enable_ascii);
 }
 
-/*
- * Function adds given value in range [-127, 127] to choosen channel of every pixel in img data matrix.
- * 
- * which_channel = (R = 1, G = 2, B = 3)
- */
-void add_to_channel(int* img_data, int width, int height, int which_channel, int value)
-{
-    for (int i = which_channel - 1; i < width * height * 3; i += 3)
-    {
-        img_data[i] += value;
-    }
-}
+
+extern void add_to_channel(char* img_data, int width, int height, int which_channel, signed char value);
 
 
 int main(int argc, char **argv)
@@ -53,7 +57,7 @@ int main(int argc, char **argv)
     if (argc == 4)
     {
         char* filename = argv[1];
-        int channel = 0;
+        int channel = 0, value_to_add = atoi(argv[3]);
         if (argv[2][0] == 'R')
         {
             channel = 1;
@@ -68,12 +72,18 @@ int main(int argc, char **argv)
         }
         else
         {
-            fprintf(stderr, "Error: Allowed channels are R, G and B.\n");
+            fprintf(stderr, "Error: R, G and B are the only allowed channels.\n");
+            exit(1);
+        }
+
+        if (value_to_add < -127 || value_to_add > 127)
+        {
+            fprintf(stderr, "Error: Value to add should be [-127, 127].\n");
             exit(1);
         }
         
         load_img(filename);
-        add_to_channel(img_data, width, height, channel, atoi(argv[3]));
+        add_to_channel(img_data_byte, width, height, channel, (signed char)atoi(argv[3]));
 
         char* filename_without_dir = strrchr(filename, '/');
 
@@ -92,6 +102,7 @@ int main(int argc, char **argv)
         
         free(output_filename);
         free(img_data);
+        free(img_data_byte);
     }
     else
     {
